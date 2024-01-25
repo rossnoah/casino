@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { Line } from "react-chartjs-2";
+import "chart.js/auto";
+import { ChartOptions } from "chart.js/auto";
+import { AreaChart, Card, LineChart, Title } from "@tremor/react";
+import { mock } from "node:test";
 
 const MAX_HISTORY_SIZE = 100;
 
@@ -73,6 +78,7 @@ const PowerballSimulator: React.FC = () => {
 
   const [isAutoBuyActive, setIsAutoBuyActive] = useState(false);
   const [autoBuyDuration, setAutoBuyDuration] = useState<number>(3000); // duration in milliseconds
+  const [showGraph, setShowGraph] = useState(false);
 
   useEffect(() => {
     let autoBuyInterval: NodeJS.Timer;
@@ -131,6 +137,52 @@ const PowerballSimulator: React.FC = () => {
   const handlePowerballChange = (value: number) => {
     setUserTicket({ ...userTicket, powerball: value });
   };
+
+  interface Entry {
+    year: number;
+    "Total Winnings": number;
+  }
+
+  // State to keep track of winnings history
+  const [winningsHistory, setWinningsHistory] = useState<Entry[]>([]);
+
+  const calculateYears = (numTickets: number) => {
+    const years = Math.floor(totalTickets / (52 * 2));
+    return years;
+  };
+
+  const moneyWonRef = useRef(moneyWon);
+  useEffect(() => {
+    moneyWonRef.current = moneyWon;
+  }, [moneyWon]);
+
+  const totalTicketsRef = useRef(totalTickets);
+
+  useEffect(() => {
+    if (!showGraph) {
+      return;
+    }
+    // Set an interval to update the winnings history every 3 seconds
+    const interval = setInterval(() => {
+      setWinningsHistory((prevHistory) => {
+        // Add the current money won from the ref and keep only the last 100 data points
+        const newEntry: Entry = {
+          year: calculateYears(totalTicketsRef.current),
+          "Total Winnings": moneyWonRef.current,
+        };
+        const updatedHistory = [...prevHistory, newEntry];
+        return updatedHistory.slice(-MAX_HISTORY_SIZE);
+      });
+    }, 1000); // Update time in ms
+
+    // Clear the interval when the component unmounts
+    return () => clearInterval(interval);
+  }, [showGraph]); // Empty dependency array
+
+  // const transformedChartData = winningsHistory.map((winnings, index) => ({
+  //   year: index, // Assuming time starts at 1
+  //   "Total Winnings": winnings,
+  // }));
 
   const validateTicket = (ticket: PowerballTicket): boolean => {
     if (ticket.numbers.length !== 5) {
@@ -209,11 +261,6 @@ const PowerballSimulator: React.FC = () => {
     return percent.toFixed(2);
   };
 
-  const calculateYears = () => {
-    const years = Math.floor(totalTickets / (52 * 2));
-    return years;
-  };
-
   // Function to get color based on value
   const getColor = (value: number, type: "text" | "bg") => {
     const color = value > 0 ? "green" : value < 0 ? "red" : "gray";
@@ -252,6 +299,7 @@ const PowerballSimulator: React.FC = () => {
             Auto Buy Tickets:
           </label>
           <input
+            className="w-6 h-6"
             id="auto-buy-toggle"
             type="checkbox"
             checked={isAutoBuyActive}
@@ -283,7 +331,17 @@ const PowerballSimulator: React.FC = () => {
             value={ticketsMultiplier}
             onChange={(e) => handleTicketsMultiplierChange(e)}
             min="1"
-            className="w-20 p-2 border border-gray-300 rounded"
+            className="w-28 p-2 border border-gray-300 rounded"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="font-semibold">Show Graph:</label>
+          <input
+            className="w-6 h-6"
+            id="auto-buy-toggle"
+            type="checkbox"
+            checked={showGraph}
+            onChange={(e) => setShowGraph(e.target.checked)}
           />
         </div>
       </div>
@@ -297,15 +355,15 @@ const PowerballSimulator: React.FC = () => {
             moneyWon={moneyWon}
             netGain={calculateNetGain()}
             getBackgroundColor={getBackgroundColor}
-            years={calculateYears()}
+            years={calculateYears(totalTickets)}
             winningsPercent={calculateWinningsPercent()}
           />
           {userTicket && (
             <TicketDisplay label="Your Ticket" ticket={userTicket} />
           )}
-          {winningTicket && (
+          {/* {winningTicket && (
             <TicketDisplay label="Last Winning Ticket" ticket={winningTicket} />
-          )}
+          )} */}
           <TicketHistory
             historyRef={ticketHistoryRef}
             ticketHistory={ticketHistory}
@@ -317,6 +375,8 @@ const PowerballSimulator: React.FC = () => {
           <WinsDisplay winCounts={winCounts} />
         </div>
       </div>
+
+      {showGraph && <WinningsLineChart chartData={winningsHistory} />}
     </div>
   );
 };
@@ -361,47 +421,71 @@ const StatisticsDisplay = ({
   years,
   winningsPercent,
 }: StatisticsDisplayProps) => {
+  // Function to format numbers with commas
+  const formatNumber = (num: number | string) => {
+    const numNum = Number(num);
+    if (isNaN(numNum)) {
+      return num;
+    }
+    return numNum.toLocaleString();
+  };
   return (
     <div className="text-center mt-4">
+      {/* Set a fixed width for the number display sections */}
+      <style>{`
+        .number-display {
+          min-width: 150px; /* Adjust this value as needed */
+          text-align: right;
+        }
+      `}</style>
+
       <div
-        className={`flex justify-center items-center mb-2 rounded-lg ${getBackgroundColor(
+        className={`flex justify-between items-center mb-2 rounded-lg ${getBackgroundColor(
           -moneySpent
         )}`}
       >
         <div className="mr-2 px-3 py-1">Money Spent:</div>
-        <div className="font-semibold text-black px-3 py-1">${moneySpent}</div>
+        <div className="font-semibold text-black px-3 py-1 number-display">
+          ${formatNumber(moneySpent)}
+        </div>
       </div>
       <div
-        className={`flex justify-center items-center mb-2 rounded-lg ${getBackgroundColor(
+        className={`flex justify-between items-center mb-2 rounded-lg ${getBackgroundColor(
           moneyWon
         )}`}
       >
         <div className="mr-2 px-3 py-1">Money Won:</div>
-        <div className="font-semibold text-black px-3 py-1">${moneyWon}</div>
+        <div className="font-semibold text-black px-3 py-1 number-display">
+          ${formatNumber(moneyWon)}
+        </div>
       </div>
       <div
-        className={`flex justify-center items-center mb-2 rounded-lg ${getBackgroundColor(
+        className={`flex justify-between items-center mb-2 rounded-lg ${getBackgroundColor(
           netGain
         )}`}
       >
         <div className="mr-2 px-3 py-1">Net Gain/Loss:</div>
-        <div className="font-semibold text-black px-3 py-1">${netGain}</div>
+        <div className="font-semibold text-black px-3 py-1 number-display">
+          ${formatNumber(netGain)}
+        </div>
       </div>
       <div
-        className={`flex justify-center items-center mb-2 rounded-lg ${getBackgroundColor(
+        className={`flex justify-between items-center mb-2 rounded-lg ${getBackgroundColor(
           0
         )}`}
       >
         <div className="mr-2 px-3 py-1">Years (2 tickets per week):</div>
-        <div className="font-semibold text-black px-3 py-1">{years}</div>
+        <div className="font-semibold text-black px-3 py-1 number-display">
+          {formatNumber(years)}
+        </div>
       </div>
       <div
-        className={`flex justify-center items-center mb-2 rounded-lg ${getBackgroundColor(
+        className={`flex justify-between items-center mb-2 rounded-lg ${getBackgroundColor(
           0
         )}`}
       >
         <div className="mr-2 px-3 py-1">Winnings:</div>
-        <div className="font-semibold text-black px-3 py-1">
+        <div className="font-semibold text-black px-3 py-1 number-display">
           {winningsPercent}%
         </div>
       </div>
@@ -417,19 +501,24 @@ const TicketHistory = ({
   const startIndex = totalTickets - ticketHistory.length;
 
   return (
-    <div
-      ref={historyRef}
-      className="mt-4 overflow-y-auto h-40 bg-gray-100 p-4 rounded"
-    >
-      <p className="font-semibold">Ticket History:</p>
-      {ticketHistory.map((ticket, index) => (
-        <div key={index} className="mt-2">
-          <p>
-            Ticket {startIndex + index + 1}: Numbers:{" "}
-            {ticket.numbers.join(", ")}, PB: {ticket.powerball}
-          </p>
-        </div>
-      ))}
+    <div className="mt-4 bg-gray-100 p-4 rounded">
+      <p className="font-semibold mb-2">Ticket History:</p>
+
+      <div ref={historyRef} className="overflow-y-auto h-28 text-sm">
+        {ticketHistory.map((ticket, index) => (
+          <div key={index} className="mt-1">
+            <p>
+              #{startIndex + index + 1}:{" "}
+              <b>
+                {" ["}
+                {ticket.numbers.join(", ")}
+                {"]"}
+              </b>{" "}
+              PB: <b>{ticket.powerball}</b>
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -495,8 +584,8 @@ interface WinCounts {
 
 const WinsDisplay: React.FC<{ winCounts: WinCounts }> = ({ winCounts }) => {
   return (
-    <div className="mt-4 p-4 bg-white shadow-lg rounded-lg">
-      <h3 className="text-lg font-bold text-center text-gray-800 mb-4">
+    <div className="mt-4 p-4 bg-white rounded-lg">
+      <h3 className="text-lg font-bold text-center text-black mb-4">
         Win Counts:
       </h3>
       <div className="flex flex-col gap-2">
@@ -534,6 +623,54 @@ const WinsDisplay: React.FC<{ winCounts: WinCounts }> = ({ winCounts }) => {
           {winCounts.powerballOnly}
         </div>
       </div>
+    </div>
+  );
+};
+
+const WinningsLineChart = ({ chartData }: { chartData: any }) => {
+  const valueFormatter = (number: number) => {
+    const formatter = new Intl.NumberFormat("us", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+
+    let formattedNumber;
+
+    if (number >= 1e9) {
+      formattedNumber = `${formatter.format(number / 1e9)}B`;
+    } else if (number >= 1e6) {
+      formattedNumber = `${formatter.format(number / 1e6)}M`;
+    } else if (number >= 1e3) {
+      formattedNumber = `${formatter.format(number / 1e3)}K`;
+    } else {
+      formattedNumber = `${formatter.format(number)}`;
+    }
+
+    return formattedNumber;
+  };
+
+  // const mockData = [
+  //   { time: 1, "Total Winnings": 100 },
+  //   { time: 2, "Total Winnings": 200 },
+  //   { time: 3, "Total Winnings": 300 },
+  // ];
+
+  return (
+    <div>
+      <Card>
+        <Title>Winnings Over Time</Title>
+        <AreaChart
+          className="mt-6"
+          data={chartData}
+          index="year"
+          categories={["Total Winnings"]}
+          colors={["blue"]}
+          valueFormatter={valueFormatter}
+          // yAxisValueFormatter={valueFormatter} // Add this to format Y axis values
+          // hideXAxisLabels={true} // Add this to hide X axis labels
+          yAxisWidth={40}
+        />
+      </Card>
     </div>
   );
 };
