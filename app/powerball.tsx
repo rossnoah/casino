@@ -334,7 +334,7 @@ const PowerballSimulator: React.FC = () => {
             className="w-28 p-2 border border-gray-300 rounded"
           />
         </div>
-        <div className="flex items-center gap-2">
+        {/* <div className="flex items-center gap-2">
           <label className="font-semibold">Show Graph:</label>
           <input
             className="w-6 h-6"
@@ -343,7 +343,7 @@ const PowerballSimulator: React.FC = () => {
             checked={showGraph}
             onChange={(e) => setShowGraph(e.target.checked)}
           />
-        </div>
+        </div> */}
       </div>
 
       <ValidationMessage isValid={isValidTicket} />
@@ -376,7 +376,7 @@ const PowerballSimulator: React.FC = () => {
         </div>
       </div>
 
-      {showGraph && <WinningsLineChart chartData={winningsHistory} />}
+      {/* {showGraph && <WinningsLineChart chartData={winningsHistory} />} */}
     </div>
   );
 };
